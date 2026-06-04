@@ -19,4 +19,4 @@ auto_archive_completed = false
 max_retries = 3
 
 [ledger]
-path = ".scribeflow/ledger.db"
+path = ".scribeflow/ledger.sqlite"

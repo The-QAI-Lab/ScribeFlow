@@ -134,7 +134,7 @@ ScribeFlow keeps a local SQLite database to persist processing state.
 
 Recommended ledger responsibilities:
 - track canonical file path and content hash
-- track status transitions (`discovered` -> `pending` -> `processing` -> `completed`/`failed`)
+- track current statuses (`pending`, `completed`, `failed`) in Phase 1
 - store attempt count and timestamps
 - record output artifact locations
 - avoid duplicate processing by hash match
