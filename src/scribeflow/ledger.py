@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-ALLOWED_STATUSES = ("pending", "completed", "failed")
+ALLOWED_STATUSES = (
+    "pending",
+    "audio_extracted",
+    "failed_audio",
+    "completed",
+    "failed",
+)
 
 
 @dataclass(slots=True)
@@ -25,6 +31,7 @@ class LedgerEntry:
     output_markdown_path: str | None = None
     output_json_path: str | None = None
     output_subtitle_path: str | None = None
+    output_audio_path: str | None = None
     error_message: str | None = None
     retry_count: int = 0
 
@@ -53,6 +60,7 @@ class Ledger:
                     discovered_at TEXT NOT NULL,
                     started_at TEXT,
                     completed_at TEXT,
+                    output_audio_path TEXT,
                     output_markdown_path TEXT,
                     output_json_path TEXT,
                     output_subtitle_path TEXT,
@@ -64,6 +72,20 @@ class Ledger:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_ledger_status ON ledger(status)"
             )
+
+            table_sql_row = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ledger'"
+            ).fetchone()
+            table_sql = str(table_sql_row[0] or "") if table_sql_row else ""
+            if "audio_extracted" not in table_sql or "failed_audio" not in table_sql:
+                self._migrate_ledger_schema(connection)
+
+            columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(ledger)").fetchall()
+            }
+            if "output_audio_path" not in columns:
+                connection.execute("ALTER TABLE ledger ADD COLUMN output_audio_path TEXT")
 
     def register_pending(self, entry: LedgerEntry) -> bool:
         """Insert a pending entry if hash is new; return True if inserted."""
@@ -84,12 +106,13 @@ class Ledger:
                     discovered_at,
                     started_at,
                     completed_at,
+                    output_audio_path,
                     output_markdown_path,
                     output_json_path,
                     output_subtitle_path,
                     error_message,
                     retry_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(file_hash) DO NOTHING
                 """,
                 (
@@ -103,6 +126,7 @@ class Ledger:
                     entry.discovered_at,
                     entry.started_at,
                     entry.completed_at,
+                    entry.output_audio_path,
                     entry.output_markdown_path,
                     entry.output_json_path,
                     entry.output_subtitle_path,
@@ -128,6 +152,8 @@ class Ledger:
                 SELECT
                     COUNT(*) AS total,
                     SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN status = 'audio_extracted' THEN 1 ELSE 0 END) AS audio_extracted,
+                    SUM(CASE WHEN status = 'failed_audio' THEN 1 ELSE 0 END) AS failed_audio,
                     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
                     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
                 FROM ledger
@@ -137,8 +163,10 @@ class Ledger:
         return {
             "total": int(row[0] or 0),
             "pending": int(row[1] or 0),
-            "completed": int(row[2] or 0),
-            "failed": int(row[3] or 0),
+            "audio_extracted": int(row[2] or 0),
+            "failed_audio": int(row[3] or 0),
+            "completed": int(row[4] or 0),
+            "failed": int(row[5] or 0),
         }
 
     def pending_rows(self) -> list[dict[str, str | int]]:
@@ -163,3 +191,135 @@ class Ledger:
             }
             for row in rows
         ]
+
+    def pending_for_processing(
+        self, *, filename: str | None = None, limit: int | None = None
+    ) -> list[dict[str, str | int]]:
+        """Return pending rows for processing, optionally filtered."""
+        query = """
+            SELECT id, source_path, original_filename, normalized_filename, file_type, file_hash
+            FROM ledger
+            WHERE status = 'pending'
+        """
+        params: list[object] = []
+
+        if filename:
+            query += " AND original_filename = ?"
+            params.append(Path(filename).name)
+
+        query += " ORDER BY discovered_at ASC, id ASC"
+
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with sqlite3.connect(self.db_path) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(query, params).fetchall()
+
+        return [
+            {
+                "id": int(row["id"]),
+                "source_path": str(row["source_path"]),
+                "original_filename": str(row["original_filename"]),
+                "normalized_filename": str(row["normalized_filename"]),
+                "file_type": str(row["file_type"]),
+                "file_hash": str(row["file_hash"]),
+            }
+            for row in rows
+        ]
+
+    def mark_audio_extracted(
+        self, row_id: int, *, output_audio_path: str, completed_at: str
+    ) -> None:
+        """Mark a pending row as audio extracted and store output path."""
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute(
+                """
+                UPDATE ledger
+                SET
+                    status = 'audio_extracted',
+                    output_audio_path = ?,
+                    completed_at = ?,
+                    error_message = NULL
+                WHERE id = ?
+                """,
+                (output_audio_path, completed_at, row_id),
+            )
+
+    def mark_audio_failed(self, row_id: int, *, error_message: str, completed_at: str) -> None:
+        """Mark a pending row as failed during audio extraction."""
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute(
+                """
+                UPDATE ledger
+                SET
+                    status = 'failed_audio',
+                    output_audio_path = NULL,
+                    completed_at = ?,
+                    error_message = ?
+                WHERE id = ?
+                """,
+                (completed_at, error_message, row_id),
+            )
+
+    def _migrate_ledger_schema(self, connection: sqlite3.Connection) -> None:
+        """Rebuild table schema when status constraints are outdated."""
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ledger_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_path TEXT NOT NULL,
+                original_filename TEXT NOT NULL,
+                normalized_filename TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_hash TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL CHECK (
+                    status IN ('pending', 'audio_extracted', 'failed_audio', 'completed', 'failed')
+                ),
+                discovered_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                output_audio_path TEXT,
+                output_markdown_path TEXT,
+                output_json_path TEXT,
+                output_subtitle_path TEXT,
+                error_message TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+
+        existing_columns = [
+            row[1] for row in connection.execute("PRAGMA table_info(ledger)").fetchall()
+        ]
+        target_columns = [
+            "id",
+            "source_path",
+            "original_filename",
+            "normalized_filename",
+            "file_type",
+            "file_size",
+            "file_hash",
+            "status",
+            "discovered_at",
+            "started_at",
+            "completed_at",
+            "output_audio_path",
+            "output_markdown_path",
+            "output_json_path",
+            "output_subtitle_path",
+            "error_message",
+            "retry_count",
+        ]
+        shared_columns = [column for column in target_columns if column in existing_columns]
+
+        if shared_columns:
+            column_list = ", ".join(shared_columns)
+            connection.execute(
+                f"INSERT INTO ledger_new ({column_list}) SELECT {column_list} FROM ledger"
+            )
+
+        connection.execute("DROP TABLE ledger")
+        connection.execute("ALTER TABLE ledger_new RENAME TO ledger")

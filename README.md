@@ -108,6 +108,7 @@ scribeflow status
 - `scribeflow init` — initialize folders and local SQLite ledger
 - `scribeflow scan` — scan inbox folders and register new files as pending
 - `scribeflow status` — show tracked totals and pending files table
+- `scribeflow process` — convert pending MP3/MP4 files into normalized WAV audio
 
 Planned later:
 - `scribeflow process`
@@ -144,8 +145,10 @@ Current location: `.scribeflow/ledger.sqlite`
 ## File Status Lifecycle
 Current statuses implemented in Phase 1:
 1. `pending`
-2. `completed`
-3. `failed`
+2. `audio_extracted`
+3. `failed_audio`
+4. `completed`
+5. `failed`
 
 Phase 1 behavior registers new files as `pending` and reports counts by status.
 

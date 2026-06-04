@@ -13,6 +13,8 @@ from scribeflow.ledger import Ledger
 class StatusSnapshot:
     total: int
     pending: int
+    audio_extracted: int
+    failed_audio: int
     completed: int
     failed: int
     pending_files: list[dict[str, str | int]]
@@ -29,6 +31,8 @@ def load_status(root: Path = Path(".")) -> StatusSnapshot:
     return StatusSnapshot(
         total=counts["total"],
         pending=counts["pending"],
+        audio_extracted=counts["audio_extracted"],
+        failed_audio=counts["failed_audio"],
         completed=counts["completed"],
         failed=counts["failed"],
         pending_files=pending_files,

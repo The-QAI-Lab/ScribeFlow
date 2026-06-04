@@ -6,6 +6,7 @@ This page documents the currently implemented commands:
 - `scribeflow init`
 - `scribeflow scan`
 - `scribeflow status`
+- `scribeflow process`
 
 ## `scribeflow version`
 Print the installed version.
@@ -90,4 +91,22 @@ Example output:
 │ Completed             │     0 │
 │ Failed                │     0 │
 └───────────────────────┴───────┘
+```
+
+## `scribeflow process`
+Processes pending files from the ledger and converts each to mono 16kHz WAV in `working/audio/` using FFmpeg.
+
+Supported:
+- `.mp4` → audio extraction (`-vn`) + WAV normalization
+- `.mp3` → WAV normalization
+
+Status transitions:
+- success → `audio_extracted`
+- conversion/missing source failure → `failed_audio`
+
+```bash
+scribeflow process
+scribeflow process --limit 1
+scribeflow process --file lecture.mp4
+scribeflow process --dry-run
 ```

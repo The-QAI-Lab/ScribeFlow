@@ -11,6 +11,7 @@ from rich.table import Table
 from scribeflow import __version__
 from scribeflow.config import LEDGER_PATH, REQUIRED_DIRECTORIES
 from scribeflow.ledger import Ledger
+from scribeflow.processor import process_pending
 from scribeflow.scanner import scan_workspace
 from scribeflow.status import load_status
 from scribeflow.utils import ensure_directories
@@ -63,6 +64,8 @@ def status() -> None:
     totals.add_column("Count", justify="right")
     totals.add_row("Total files tracked", str(snapshot.total))
     totals.add_row("Pending", str(snapshot.pending))
+    totals.add_row("Audio extracted", str(snapshot.audio_extracted))
+    totals.add_row("Failed audio", str(snapshot.failed_audio))
     totals.add_row("Completed", str(snapshot.completed))
     totals.add_row("Failed", str(snapshot.failed))
     console.print(totals)
@@ -85,3 +88,43 @@ def status() -> None:
         pending_table.add_row("-", "-", "-", "-")
 
     console.print(pending_table)
+
+
+@app.command()
+def process(
+    limit: int | None = typer.Option(
+        None,
+        "--limit",
+        min=1,
+        help="Process at most this many pending files.",
+    ),
+    file: str | None = typer.Option(
+        None,
+        "--file",
+        help="Process one pending file by original filename.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show processing selection without running FFmpeg or writing ledger updates.",
+    ),
+) -> None:
+    """Process pending files into normalized WAV audio."""
+    summary = process_pending(
+        Path("."),
+        limit=limit,
+        filename=file,
+        dry_run=dry_run,
+    )
+
+    table = Table(title="Process Summary")
+    table.add_column("Metric")
+    table.add_column("Count", justify="right")
+    table.add_row("Pending files in ledger", str(summary.discovered_pending))
+    table.add_row("Selected for this run", str(summary.selected_for_run))
+    table.add_row("Files processed", str(summary.processed))
+    table.add_row("Audio extracted", str(summary.succeeded))
+    table.add_row("Failed audio", str(summary.failed))
+    table.add_row("Missing source files", str(summary.missing_source))
+    table.add_row("Dry run", "yes" if summary.dry_run else "no")
+    console.print(table)
