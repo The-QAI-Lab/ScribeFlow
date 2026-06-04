@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+
+# Virtual environments
+.venv/
+
+# Local ledger/runtime state
+.scribeflow/*
+!.scribeflow/.gitkeep
+
+# Local outputs
+output/markdown/*
+!output/markdown/.gitkeep
+output/raw_json/*
+!output/raw_json/.gitkeep
+output/subtitles/*
+!output/subtitles/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Packaging artifacts
+*.egg-info/
