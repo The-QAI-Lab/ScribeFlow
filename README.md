@@ -111,7 +111,6 @@ scribeflow status
 - `scribeflow process` — convert pending MP3/MP4 files into normalized WAV audio
 
 Planned later:
-- `scribeflow process`
 - `scribeflow retry`
 - `scribeflow reprocess --file <filename>`
 - `scribeflow clean`
@@ -190,7 +189,6 @@ Near-term:
 - better failure diagnostics and retry policies
 
 Planned future commands:
-- `scribeflow process`
 - `scribeflow retry`
 - `scribeflow reprocess --file <filename>`
 - `scribeflow clean`

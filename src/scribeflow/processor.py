@@ -98,7 +98,9 @@ def process_pending(
             continue
 
         summary.failed += 1
-        error_message = (result.stderr or "").strip() or "ffmpeg conversion failed"
+        error_message = (result.stderr or "").strip() or (
+            f"ffmpeg conversion failed with return code {result.returncode}"
+        )
         ledger.mark_audio_failed(
             row_id,
             error_message=error_message,

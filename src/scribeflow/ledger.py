@@ -315,11 +315,26 @@ class Ledger:
         ]
         shared_columns = [column for column in target_columns if column in existing_columns]
 
-        if shared_columns:
-            column_list = ", ".join(shared_columns)
-            connection.execute(
-                f"INSERT INTO ledger_new ({column_list}) SELECT {column_list} FROM ledger"
+        unexpected_columns = [column for column in existing_columns if column not in target_columns]
+        if unexpected_columns:
+            raise RuntimeError(
+                "Unexpected ledger schema mismatch during migration. "
+                f"Unknown columns: {unexpected_columns}. "
+                "Check for manual database edits or an incompatible ScribeFlow version."
             )
+
+        if shared_columns:
+            connection.row_factory = sqlite3.Row
+            existing_rows = connection.execute("SELECT * FROM ledger").fetchall()
+
+            insert_columns = ", ".join(target_columns)
+            placeholders = ", ".join(["?"] * len(target_columns))
+            for row in existing_rows:
+                values = [row[column] if column in existing_columns else None for column in target_columns]
+                connection.execute(
+                    f"INSERT INTO ledger_new ({insert_columns}) VALUES ({placeholders})",
+                    values,
+                )
 
         connection.execute("DROP TABLE ledger")
         connection.execute("ALTER TABLE ledger_new RENAME TO ledger")
