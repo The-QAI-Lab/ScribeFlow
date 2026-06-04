@@ -1,3 +1,5 @@
+![ScribeFlow Banner](assets/scribeflow-banner.png)
+
 # ScribeFlow
 
 Local-first CLI for converting MP3/MP4 lectures into searchable, timestamped Markdown study notes.
