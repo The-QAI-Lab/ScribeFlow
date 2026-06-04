@@ -10,11 +10,11 @@ archive_completed = "archive/completed"
 
 [transcription]
 backend = "faster-whisper"
-model = "base"
-language = "auto"
+model = "small"
+language = "en"
 
 [processing]
-write_subtitles = true
+write_subtitles = false
 auto_archive_completed = false
 max_retries = 3
 

@@ -6,18 +6,44 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv.broken/
 
 # Local ledger/runtime state
 .scribeflow/*
 !.scribeflow/.gitkeep
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Local media and generated audio
+*.mp3
+*.mp4
+*.m4a
+*.mov
+*.wav
 
 # Local outputs
+inbox/mp3/*
+!inbox/mp3/.gitkeep
+inbox/mp4/*
+!inbox/mp4/.gitkeep
+working/audio/*
+!working/audio/.gitkeep
+working/temp/*
+!working/temp/.gitkeep
+working/logs/*
+!working/logs/.gitkeep
 output/markdown/*
 !output/markdown/.gitkeep
 output/raw_json/*
 !output/raw_json/.gitkeep
 output/subtitles/*
 !output/subtitles/.gitkeep
+archive/completed/*
+!archive/completed/.gitkeep
+archive/failed/*
+!archive/failed/.gitkeep
 logs/*
 !logs/.gitkeep
 
@@ -28,3 +54,6 @@ logs/*
 
 # Packaging artifacts
 *.egg-info/
+dist/
+build/
+!.gitkeep

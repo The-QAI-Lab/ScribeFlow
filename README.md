@@ -1,239 +1,247 @@
 # ScribeFlow
 
-> Local-first CLI for converting MP4/MP3 lectures into timestamped Markdown transcripts.
+Local-first CLI for converting MP3/MP4 lectures into searchable, timestamped Markdown study notes.
 
-## Project Overview
-ScribeFlow is an open-source, local-first transcription workflow for people who want structured notes from recorded audio or video.
+## Overview
 
-It is designed for students, researchers, educators, and builders who need:
-- reproducible transcript generation,
-- clear file tracking,
-- clean Markdown outputs suitable for study, search, and AI/RAG workflows,
-- a privacy-friendly workflow that can run fully on local machines.
+ScribeFlow converts local MP3 and MP4 files into:
 
-## Why ScribeFlow Exists
-Most transcription workflows are fragmented: one tool for conversion, another for transcription, another for cleanup, and no reliable ledger to track what was processed.
+- normalized WAV audio
+- transcript JSON
+- timestamped Markdown transcripts
+- optional enhanced study notes
+- local searchable index
 
-ScribeFlow solves this by combining ingestion, normalization, transcription, and Markdown formatting in one CLI workflow with a local SQLite ledger to prevent duplicate work.
+It is designed for local lecture, meeting, and training-material workflows where reproducible processing and private-by-default file handling matter.
 
-## Core Features (Phase 1)
-- Local-first ingestion pipeline for MP4 and MP3 files
-- Inbox-based workflow (`inbox/mp4/` and `inbox/mp3/`)
-- SHA-256 file hashing with chunked reads for large files
-- Duplicate prevention by content hash (not filename)
-- SQLite ledger for file tracking and status counts
-- Idempotent workspace initialization (`scribeflow init`)
-- Rich terminal summaries for scan and status commands
+## Features
 
-## Example Workflow (Current)
-1. Run `scribeflow init` to create workspace folders and ledger
-2. Add media files to `inbox/mp4/` and/or `inbox/mp3/`
-3. Run `scribeflow scan`
-4. ScribeFlow scans inbox files, hashes content, and skips duplicate hashes
-5. New files are registered in SQLite with status `pending`
-6. Run `scribeflow status` to see totals and pending queue
+- MP3 and MP4 ingestion
+- SHA-256 duplicate detection
+- SQLite processing ledger
+- FFmpeg audio extraction and normalization
+- faster-whisper transcription
+- Markdown transcript export
+- local deterministic study enhancements
+- retry, reprocess, clean, and archive commands
+- local SQLite FTS5 search
+- no cloud API required
 
-## Folder Structure
-```text
-ScribeFlow/
-├── archive/
-│   ├── completed/
-│   └── failed/
-├── config/
-│   └── scribeflow.example.toml
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── CONFIGURATION.md
-├── inbox/
-│   ├── mp3/
-│   └── mp4/
-├── logs/
-├── output/
-│   ├── markdown/
-│   ├── raw_json/
-│   └── subtitles/
-├── scripts/
-│   └── bootstrap.sh
-├── src/
-│   └── scribeflow/
-│       ├── __main__.py
-│       ├── cli.py
-│       ├── commands/
-│       ├── core/
-│       └── pipeline/
-├── tests/
-├── .scribeflow/
-│   └── (sqlite ledger lives here)
-├── pyproject.toml
-├── LICENSE
-└── README.md
-```
+## Installation
 
-## Installation Requirements
-- Python 3.11+
-- FFmpeg available on PATH
-- OS: macOS, Linux, or Windows (WSL recommended on Windows)
+macOS/Linux:
 
-## FFmpeg Requirement
-ScribeFlow depends on FFmpeg for media extraction and normalization.
-
-Check installation:
-```bash
-ffmpeg -version
-```
-
-Install examples:
-- macOS (Homebrew): `brew install ffmpeg`
-- Ubuntu/Debian: `sudo apt-get install ffmpeg`
-- Windows (choco): `choco install ffmpeg`
-
-## Python Setup
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e .[dev]
+pip install -e '.[dev,stt]'
 ```
 
-## Basic Usage
+Windows PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[dev,stt]"
+```
+
+## FFmpeg Requirement
+
+FFmpeg is required for media processing. ScribeFlow cannot extract or normalize MP3/MP4 audio without it.
+
+Check FFmpeg:
+
 ```bash
-scribeflow version
+ffmpeg -version
+```
+
+## Quick Start
+
+```bash
 scribeflow init
+
+# Add safe test files:
+# inbox/mp3/example.mp3
+# inbox/mp4/example.mp4
+
 scribeflow scan
+scribeflow status
+scribeflow process --limit 1 --model small --language en --enhance
 scribeflow status
 ```
 
-## CLI Commands
-- `scribeflow version` — print installed version
-- `scribeflow init` — initialize folders and local SQLite ledger
-- `scribeflow scan` — scan inbox folders and register new files as pending
-- `scribeflow status` — show tracked totals and pending files table
+Generated files appear in:
 
-Planned later:
-- `scribeflow process`
-- `scribeflow retry`
-- `scribeflow reprocess --file <filename>`
-- `scribeflow clean`
-
-## Configuration
-Configuration is expected to be file-based (TOML/YAML support planned; TOML shown by default).
-
-Suggested config surface:
-- input/output directories
-- archive behavior
-- transcription model + device settings
-- subtitle output toggle (SRT/VTT)
-- hashing and duplicate strategy
-- retries and failure policy
-- logging verbosity
-
-See `/config/scribeflow.example.toml` and `/docs/CONFIGURATION.md`.
-
-## How the SQLite Ledger Works
-ScribeFlow keeps a local SQLite database to persist processing state.
-
-Recommended ledger responsibilities:
-- track canonical file path and content hash
-- track current statuses (`pending`, `completed`, `failed`) in Phase 1
-- store attempt count and timestamps
-- record output artifact locations
-- avoid duplicate processing by hash match
-
-Current location: `.scribeflow/ledger.sqlite`
-
-## File Status Lifecycle
-Current statuses implemented in Phase 1:
-1. `pending`
-2. `completed`
-3. `failed`
-
-Phase 1 behavior registers new files as `pending` and reports counts by status.
-
-## Markdown Output Format
-Markdown transcript rendering is planned for a later phase.
-The output folders already exist (`output/markdown`, `output/raw_json`, `output/subtitles`) but are not written in Phase 1.
-
-## Example Command Output
 ```text
-$ scribeflow scan
-            Scan Summary            
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
-┃ Metric                     ┃ Count ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ Files scanned              │     3 │
-│ New files registered       │     2 │
-│ Duplicates skipped         │     1 │
-│ Unsupported files ignored  │     0 │
-└────────────────────────────┴───────┘
+working/audio/
+output/raw_json/
+output/markdown/
 ```
 
+## Testing With Real MP3/MP4 Files
+
+Use short safe files first, ideally 30 seconds to 2 minutes.
+
+- Place MP3 files in `inbox/mp3/`.
+- Place MP4 files in `inbox/mp4/`.
+- Do not commit media files to GitHub.
+- Run `git status` before committing.
+- Only process recordings you have the right to process.
+- Do not commit private, copyrighted, FERPA-protected, HIPAA-protected, or confidential recordings.
+
+## CLI Commands
+
+- `scribeflow version` prints the installed version.
+- `scribeflow init` creates workspace folders and local SQLite databases.
+- `scribeflow scan` scans inbox folders and registers new MP3/MP4 files.
+- `scribeflow status` shows ledger totals and pending files.
+- `scribeflow process` runs audio extraction, transcription, JSON export, and Markdown export.
+- `scribeflow retry` retries failed jobs.
+- `scribeflow reprocess --file <filename>` regenerates outputs for one tracked file.
+- `scribeflow clean` removes selected generated working files.
+- `scribeflow archive` moves completed source media into archive folders.
+- `scribeflow index` builds a local search index.
+- `scribeflow search "query"` searches indexed transcript content.
+
+## Process Examples
+
+```bash
+scribeflow process --limit 1 --model small --language en
+scribeflow process --limit 1 --model small --language en --enhance
+scribeflow process --file "lecture.mp3" --model medium --language en
+scribeflow process --dry-run
+```
+
+## Enhancement Examples
+
+```bash
+scribeflow process --enhance
+scribeflow process --summary
+scribeflow process --terms
+scribeflow process --questions
+scribeflow process --notes
+```
+
+`--enhance` enables summary, study notes, key terms, and study questions.
+
+Enhancement is deterministic and local. It does not use an LLM yet.
+
+## Search Examples
+
+```bash
+scribeflow index --rebuild --include-markdown
+scribeflow search "machine learning" --limit 10
+scribeflow search "sensitivity" --source "machine-learning" --limit 5
+scribeflow search "machine learning" --json
+```
+
+Search is lexical SQLite FTS5 search, not semantic search.
+
+## Folder Structure
+
 ```text
-$ scribeflow status
-         Ledger Status         
-┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
-┃ Metric                ┃ Count ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ Total files tracked   │     2 │
-│ Pending               │     2 │
-│ Completed             │     0 │
-│ Failed                │     0 │
-└───────────────────────┴───────┘
+inbox/mp3/             MP3 input files
+inbox/mp4/             MP4 input files
+working/audio/         normalized WAV files
+working/temp/          temporary working files
+working/logs/          local processing logs
+output/raw_json/       transcript JSON files
+output/markdown/       Markdown transcript and study note files
+output/subtitles/      reserved subtitle output
+archive/completed/     archived completed source media
+archive/failed/        archived failed source media
+.scribeflow/           local SQLite ledger and search index
+```
+
+## Ledger and Duplicate Detection
+
+ScribeFlow uses a local SQLite ledger. It tracks source path, filename, file type, size, SHA-256 hash, status, output paths, retry count, and errors.
+
+SHA-256 hashing prevents duplicate processing even if a file is renamed.
+
+## Status Lifecycle
+
+- `pending`
+- `audio_extracted`
+- `transcribed`
+- `markdown_exported`
+- `completed`
+- `failed_audio`
+- `failed_transcription`
+- `failed_export`
+
+## Output Format
+
+```markdown
+# Lecture Title
+
+**Source file:** example.mp3
+**Media type:** MP3
+**Processed:** YYYY-MM-DD HH:MM
+**Model:** faster-whisper-small
+**Status:** Completed
+
+---
+
+## Summary
+
+- Example summary point.
+
+---
+
+## Study Notes
+
+- Example study note.
+
+---
+
+## Key Terms
+
+- Example term
+
+---
+
+## Study Questions
+
+1. Example question?
+
+---
+
+## Timestamped Transcript
+
+### 00:00:00 - 00:00:05
+Transcript text here.
+```
+
+## Development
+
+```bash
+pip install -e '.[dev,stt]'
+pytest
+git diff --check
 ```
 
 ## Roadmap
-Near-term:
-- robust `init/scan/process/status/retry/reprocess/clean` command implementation
-- stable SQLite schema with migrations
-- better failure diagnostics and retry policies
 
-Planned future commands:
-- `scribeflow process`
-- `scribeflow retry`
-- `scribeflow reprocess --file <filename>`
-- `scribeflow clean`
-- `scribeflow watch`
-- `scribeflow summarize`
-- `scribeflow quiz`
-- `scribeflow terms`
-- `scribeflow index`
-- `scribeflow search`
+- semantic search
+- local RAG/ask
+- local LLM summarization
+- speaker diarization
+- web UI
+- course/project folders
+- export to Obsidian/Notion-compatible notes
 
-Long-term:
-- additional STT backends (`whisper.cpp`, hosted APIs)
-- semantic indexing and retrieval support
-- plugin architecture for custom post-processing
+## Limitations
 
-## Development Setup
-```bash
-git clone https://github.com/The-QAI-Lab/ScribeFlow.git
-cd ScribeFlow
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-```
+- Transcription accuracy depends on audio quality.
+- First faster-whisper run may download model files.
+- Search is lexical, not semantic.
+- Study enhancements are deterministic and may be basic.
+- Requires FFmpeg for media processing.
+- Requires SQLite FTS5 for search.
 
-## Testing
-```bash
-pytest -q
-```
+## License
 
-## Contributing
-Contributions are welcome.
-
-Suggested flow:
-1. Fork and create a feature branch
-2. Add tests for behavior changes
-3. Run `pytest`
-4. Open a PR with clear context and examples
-
-Please keep changes focused, documented, and reproducible.
-
-## License Placeholder
-ScribeFlow is currently released under the MIT License (see `/LICENSE`).
-
-If licensing strategy changes before 1.0, this section will be updated with migration guidance.
-
-## Disclaimer
-Transcription quality depends on audio quality, speaker clarity, domain vocabulary, and model selection.
-
-ScribeFlow may produce errors and should be reviewed before use in academic, legal, medical, or business-critical contexts.
+ScribeFlow is released under the MIT License. See [LICENSE](LICENSE).

@@ -24,5 +24,6 @@ INBOX_DIRECTORIES = [
 ]
 
 LEDGER_PATH = Path(".scribeflow/ledger.sqlite")
+SEARCH_INDEX_PATH = Path(".scribeflow/search.sqlite")
 
 SUPPORTED_EXTENSIONS = {".mp3", ".mp4"}
