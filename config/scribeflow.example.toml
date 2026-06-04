@@ -1,0 +1,22 @@
+# ScribeFlow example config (placeholder)
+
+[paths]
+inbox_mp4 = "inbox/mp4"
+inbox_mp3 = "inbox/mp3"
+output_markdown = "output/markdown"
+output_raw_json = "output/raw_json"
+output_subtitles = "output/subtitles"
+archive_completed = "archive/completed"
+
+[transcription]
+backend = "faster-whisper"
+model = "base"
+language = "auto"
+
+[processing]
+write_subtitles = true
+auto_archive_completed = false
+max_retries = 3
+
+[ledger]
+path = ".scribeflow/ledger.db"
