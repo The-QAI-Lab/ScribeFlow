@@ -16,36 +16,22 @@ Most transcription workflows are fragmented: one tool for conversion, another fo
 
 ScribeFlow solves this by combining ingestion, normalization, transcription, and Markdown formatting in one CLI workflow with a local SQLite ledger to prevent duplicate work.
 
-## Core Features
-- Local-first processing pipeline for MP4 and MP3 lecture files
+## Core Features (Phase 1)
+- Local-first ingestion pipeline for MP4 and MP3 files
 - Inbox-based workflow (`inbox/mp4/` and `inbox/mp3/`)
-- File hashing and deduplication
-- SQLite processing ledger for status tracking
-- FFmpeg-based extraction and normalization
-- `faster-whisper` default speech-to-text backend
-- Raw transcript JSON output for downstream tooling
-- Optional subtitle output (SRT/VTT)
-- Clean timestamped Markdown transcript generation
-- Retry and reprocess support for failed or updated files
-- Rich terminal UX for status and progress reporting
+- SHA-256 file hashing with chunked reads for large files
+- Duplicate prevention by content hash (not filename)
+- SQLite ledger for file tracking and status counts
+- Idempotent workspace initialization (`scribeflow init`)
+- Rich terminal summaries for scan and status commands
 
-## Example Workflow
-1. Add lecture/video files to `inbox/mp4/`
-2. Add audio files to `inbox/mp3/`
+## Example Workflow (Current)
+1. Run `scribeflow init` to create workspace folders and ledger
+2. Add media files to `inbox/mp4/` and/or `inbox/mp3/`
 3. Run `scribeflow scan`
-4. ScribeFlow finds new files and computes content hashes
-5. The SQLite ledger is checked for duplicates and prior status
-6. New items are marked `pending`
-7. Run `scribeflow process` to process all pending items
-8. MP4 files are converted to audio via FFmpeg
-9. MP3 files are normalized to WAV for stable transcription
-10. Speech-to-text runs with `faster-whisper`
-11. Raw transcript JSON is written to `output/raw_json/`
-12. Optional subtitle files are written to `output/subtitles/`
-13. Timestamped Markdown is generated in `output/markdown/`
-14. Ledger status updates to `completed`
-15. (Optional) Original files are moved to `archive/completed/`
-16. Failed jobs are marked `failed` and can be retried with `scribeflow retry`
+4. ScribeFlow scans inbox files, hashes content, and skips duplicate hashes
+5. New files are registered in SQLite with status `pending`
+6. Run `scribeflow status` to see totals and pending queue
 
 ## Folder Structure
 ```text
@@ -111,21 +97,23 @@ pip install -e .[dev]
 
 ## Basic Usage
 ```bash
+scribeflow version
 scribeflow init
 scribeflow scan
-scribeflow process
 scribeflow status
 ```
 
 ## CLI Commands
-- `scribeflow init` — initialize folders, config, and ledger
-- `scribeflow scan` — scan inbox folders and register new files as pending
-- `scribeflow status` — show processing counts and recent jobs
-- `scribeflow process` — process all pending files end-to-end
-- `scribeflow retry` — retry failed jobs
-- `scribeflow reprocess --file <filename>` — force reprocess one file
-- `scribeflow clean` — clean temporary artifacts and stale intermediate files
 - `scribeflow version` — print installed version
+- `scribeflow init` — initialize folders and local SQLite ledger
+- `scribeflow scan` — scan inbox folders and register new files as pending
+- `scribeflow status` — show tracked totals and pending files table
+
+Planned later:
+- `scribeflow process`
+- `scribeflow retry`
+- `scribeflow reprocess --file <filename>`
+- `scribeflow clean`
 
 ## Configuration
 Configuration is expected to be file-based (TOML/YAML support planned; TOML shown by default).
@@ -151,46 +139,45 @@ Recommended ledger responsibilities:
 - record output artifact locations
 - avoid duplicate processing by hash match
 
-Recommended location: `.scribeflow/ledger.db`
+Current location: `.scribeflow/ledger.sqlite`
 
 ## File Status Lifecycle
-Typical lifecycle for each media file:
-1. `discovered`
-2. `pending`
-3. `processing`
-4. `completed` or `failed`
-5. `retrying` (when `scribeflow retry` runs)
-6. back to `processing`, then terminal state
+Current statuses implemented in Phase 1:
+1. `pending`
+2. `completed`
+3. `failed`
+
+Phase 1 behavior registers new files as `pending` and reports counts by status.
 
 ## Markdown Output Format
-Each transcript should be human-readable and machine-parseable:
-- title and source metadata
-- processing timestamp
-- optional model/config metadata
-- timestamped sections/segments
-- clean paragraph formatting
+Markdown transcript rendering is planned for a later phase.
+The output folders already exist (`output/markdown`, `output/raw_json`, `output/subtitles`) but are not written in Phase 1.
 
-Example pattern:
-- heading with source filename
-- section list with `[hh:mm:ss]` markers
-- normalized punctuation and paragraph grouping
+## Example Command Output
+```text
+$ scribeflow scan
+            Scan Summary            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric                     ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Files scanned              │     3 │
+│ New files registered       │     2 │
+│ Duplicates skipped         │     1 │
+│ Unsupported files ignored  │     0 │
+└────────────────────────────┴───────┘
+```
 
-## Example Markdown Transcript
-```markdown
-# Lecture Transcript: Intro_to_Bayesian_Stats.mp4
-
-- Source: inbox/mp4/Intro_to_Bayesian_Stats.mp4
-- Processed: 2026-06-04T14:23:11Z
-- Duration: 00:48:12
-- Model: faster-whisper (medium)
-
-## Transcript
-
-[00:00:03] Welcome everyone. Today we are introducing Bayesian thinking and why prior beliefs matter.
-
-[00:02:41] Let us compare frequentist and Bayesian interpretations using a simple coin toss example.
-
-[00:11:09] The posterior combines prior belief and observed evidence in a mathematically explicit way.
+```text
+$ scribeflow status
+         Ledger Status         
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric                ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Total files tracked   │     2 │
+│ Pending               │     2 │
+│ Completed             │     0 │
+│ Failed                │     0 │
+└───────────────────────┴───────┘
 ```
 
 ## Roadmap
@@ -200,6 +187,10 @@ Near-term:
 - better failure diagnostics and retry policies
 
 Planned future commands:
+- `scribeflow process`
+- `scribeflow retry`
+- `scribeflow reprocess --file <filename>`
+- `scribeflow clean`
 - `scribeflow watch`
 - `scribeflow summarize`
 - `scribeflow quiz`
